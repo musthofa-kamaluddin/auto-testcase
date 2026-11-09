@@ -289,10 +289,45 @@ def test_solver(source_path: Path, base_dir: Path, timeout_sec: float = 2.0):
 
     return passed == total
 
+VERSION = "1.0.0"
+
+def print_help():
+    print(f"""{Color.BOLD}autotest{Color.RESET} - Fast local testcase runner and judge for C programs
+
+{Color.BOLD}USAGE:{Color.RESET}
+  autotest [OPTIONS]
+  autotest <PROBLEM|FILE> [OPTIONS]
+
+{Color.BOLD}ARGUMENTS:{Color.RESET}
+  <PROBLEM>              Problem number or identifier (e.g., 1, 2, soal_1)
+  <FILE>                 Path to specific C source file (e.g., soal_1.c, 1.c)
+
+{Color.BOLD}OPTIONS:{Color.RESET}
+  -t, --timeout <SEC>    Execution timeout limit in seconds (default: 2.0)
+  -h, --help             Show this help message and exit
+  -v, --version          Show version information and exit
+
+{Color.BOLD}EXAMPLES:{Color.RESET}
+  autotest               Scan and test all C solvers in current directory
+  autotest 1             Compile and test problem 1 (soal_1.c or 1.c)
+  autotest soal_2.c      Compile and test soal_2.c
+  autotest 1 -t 1.5      Run problem 1 with a 1.5-second timeout
+""")
+
 def main():
     base_dir = Path.cwd()
 
     args = sys.argv[1:]
+
+    # Handle help and version flags first
+    if any(arg in ("-h", "--help") for arg in args):
+        print_help()
+        sys.exit(0)
+
+    if any(arg in ("-v", "--version") for arg in args) and len(args) == 1:
+        print(f"autotest v{VERSION}")
+        sys.exit(0)
+
     timeout = 2.0
 
     cleaned_args = []

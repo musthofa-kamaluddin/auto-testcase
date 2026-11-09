@@ -20,14 +20,23 @@ class Color:
     DIM = "\033[2m"
     RESET = "\033[0m"
 
-# Ensure UTF-8 output on Windows
+# Ensure ANSI color and UTF-8 support on Windows
 if sys.platform == "win32":
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
-    os.system('')
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        for h_id in (-11, -12):
+            h = kernel32.GetStdHandle(h_id)
+            mode = ctypes.c_ulong()
+            if kernel32.GetConsoleMode(h, ctypes.byref(mode)):
+                kernel32.SetConsoleMode(h, mode.value | 0x0004)
+    except Exception:
+        os.system('')
 
 DIVIDER = "=" * 64
 SUB_DIVIDER = "-" * 64
@@ -112,7 +121,7 @@ def ensure_testcases(prob_id: str, base_dir: Path) -> Path:
 def compile_c(source_path: Path, output_exe: Path) -> bool:
     """Compile C file using gcc."""
     cmd = ["gcc", str(source_path), "-o", str(output_exe), "-O2", "-Wall"]
-    print(f"  {Color.BLUE}[COMPILE]{Color.RESET} gcc {source_path.name} -o {output_exe.name} -O2 -Wall")
+    print(f"  {Color.BLUE}{Color.BOLD}[COMPILE]{Color.RESET} gcc {source_path.name} -o {output_exe.name} -O2 -Wall")
 
     start_time = time.time()
     res = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
@@ -125,11 +134,11 @@ def compile_c(source_path: Path, output_exe: Path) -> bool:
         return False
 
     if res.stderr.strip():
-        print(f"  {Color.YELLOW}[WARNINGS]{Color.RESET}")
+        print(f"  {Color.YELLOW}{Color.BOLD}[WARNINGS]{Color.RESET}")
         for line in res.stderr.strip().splitlines():
             print(f"    {line}")
     else:
-        print(f"  {Color.GREEN}[OK]{Color.RESET} Compiled successfully in {compile_time:.0f} ms")
+        print(f"  {Color.GREEN}{Color.BOLD}[OK]{Color.RESET} Compiled successfully ({compile_time:.0f} ms)")
 
     return True
 
@@ -194,7 +203,7 @@ def test_solver(source_path: Path, base_dir: Path, timeout_sec: float = 2.0):
     output_exe = source_path.with_suffix(".exe" if os.name == "nt" else "")
 
     print(DIVIDER)
-    print(f"  TARGET : {source_path.name} (Problem {prob_id})")
+    print(f"  TARGET : {Color.CYAN}{Color.BOLD}{source_path.name}{Color.RESET} (Problem {Color.BOLD}{prob_id}{Color.RESET})")
     print(DIVIDER)
 
     # 1. Compile
@@ -240,16 +249,16 @@ def test_solver(source_path: Path, base_dir: Path, timeout_sec: float = 2.0):
 
         if status == "AC":
             passed += 1
-            badge = f"{Color.GREEN}{Color.BOLD}[AC]{Color.RESET}"
-            verdict = "Accepted"
+            badge_text = f"[AC]  {'Accepted':<20}"
+            badge_colored = f"{Color.GREEN}{Color.BOLD}{badge_text}{Color.RESET}"
             time_str = f"({elapsed_ms:.1f} ms)"
-            print(f"    {case_label}  {badge}  {verdict:<20}  {time_str}")
+            print(f"    {case_label}  {badge_colored}  {time_str}")
 
         elif status == "WA":
-            badge = f"{Color.RED}{Color.BOLD}[WA]{Color.RESET}"
-            verdict = "Wrong Answer"
+            badge_text = f"[WA]  {'Wrong Answer':<20}"
+            badge_colored = f"{Color.RED}{Color.BOLD}{badge_text}{Color.RESET}"
             time_str = f"({elapsed_ms:.1f} ms)"
-            print(f"    {case_label}  {badge}  {verdict:<20}  {time_str}")
+            print(f"    {case_label}  {badge_colored}  {time_str}")
 
             actual, expected, diff_lines = detail
             print(f"      {Color.YELLOW}{SUB_DIVIDER[:48]}{Color.RESET}")
@@ -266,25 +275,27 @@ def test_solver(source_path: Path, base_dir: Path, timeout_sec: float = 2.0):
             print(f"      {Color.YELLOW}{SUB_DIVIDER[:48]}{Color.RESET}")
 
         elif status == "TLE":
-            badge = f"{Color.YELLOW}{Color.BOLD}[TLE]{Color.RESET}"
-            verdict = "Time Limit Exceeded"
+            badge_text = f"[TLE] {'Time Limit Exceeded':<20}"
+            badge_colored = f"{Color.YELLOW}{Color.BOLD}{badge_text}{Color.RESET}"
             time_str = f"({detail})"
-            print(f"    {case_label}  {badge}  {verdict:<20}  {time_str}")
+            print(f"    {case_label}  {badge_colored}  {time_str}")
 
         elif status == "RTE":
-            badge = f"{Color.MAGENTA}{Color.BOLD}[RTE]{Color.RESET}"
-            verdict = "Runtime Error"
+            badge_text = f"[RTE] {'Runtime Error':<20}"
+            badge_colored = f"{Color.MAGENTA}{Color.BOLD}{badge_text}{Color.RESET}"
             time_str = f"({detail})"
-            print(f"    {case_label}  {badge}  {verdict:<20}  {time_str}")
+            print(f"    {case_label}  {badge_colored}  {time_str}")
 
     print(f"\n{SUB_DIVIDER}")
     score_pct = (passed / total) * 100
     if passed == total:
-        result_text = f"{Color.GREEN}{Color.BOLD}ALL ACCEPTED ({score_pct:.0f}%){Color.RESET}"
+        status_colored = f"{Color.GREEN}{Color.BOLD}ALL ACCEPTED ({score_pct:.0f}%){Color.RESET}"
+        passed_colored = f"{Color.GREEN}{Color.BOLD}{passed}/{total} Passed{Color.RESET}"
     else:
-        result_text = f"{Color.RED}{Color.BOLD}FAILED ({score_pct:.0f}%){Color.RESET}"
+        status_colored = f"{Color.RED}{Color.BOLD}FAILED ({score_pct:.0f}%){Color.RESET}"
+        passed_colored = f"{Color.YELLOW if passed > 0 else Color.RED}{Color.BOLD}{passed}/{total} Passed{Color.RESET}"
 
-    print(f"  Summary : {passed}/{total} Passed | Status: {result_text}")
+    print(f"  Summary : {passed_colored} | Status: {status_colored}")
     print(f"{DIVIDER}\n")
 
     return passed == total
@@ -294,20 +305,20 @@ VERSION = "1.0.0"
 def print_help():
     print(f"""{Color.BOLD}autotest{Color.RESET} - Fast local testcase runner and judge for C programs
 
-{Color.BOLD}USAGE:{Color.RESET}
+{Color.CYAN}{Color.BOLD}USAGE:{Color.RESET}
   autotest [OPTIONS]
   autotest <PROBLEM|FILE> [OPTIONS]
 
-{Color.BOLD}ARGUMENTS:{Color.RESET}
+{Color.CYAN}{Color.BOLD}ARGUMENTS:{Color.RESET}
   <PROBLEM>              Problem number or identifier (e.g., 1, 2, soal_1)
   <FILE>                 Path to specific C source file (e.g., soal_1.c, 1.c)
 
-{Color.BOLD}OPTIONS:{Color.RESET}
+{Color.CYAN}{Color.BOLD}OPTIONS:{Color.RESET}
   -t, --timeout <SEC>    Execution timeout limit in seconds (default: 2.0)
   -h, --help             Show this help message and exit
   -v, --version          Show version information and exit
 
-{Color.BOLD}EXAMPLES:{Color.RESET}
+{Color.CYAN}{Color.BOLD}EXAMPLES:{Color.RESET}
   autotest               Scan and test all C solvers in current directory
   autotest 1             Compile and test problem 1 (soal_1.c or 1.c)
   autotest soal_2.c      Compile and test soal_2.c
